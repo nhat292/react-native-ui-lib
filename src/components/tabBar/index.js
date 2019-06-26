@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import PropTypes from 'prop-types';
 import React from 'react';
-import {StyleSheet, ViewPropTypes, Animated, ScrollView} from 'react-native';
+import {StyleSheet, ViewPropTypes, Animated, ScrollView, Dimensions} from 'react-native';
 import {Colors, Spacings} from '../../style';
 import {BaseComponent} from '../../commons';
 import {Constants} from '../../helpers';
@@ -9,6 +9,8 @@ import View from '../view';
 import Image from '../image';
 import Assets from '../../assets';
 import TabBarItem from './TabBarItem';
+
+const {width, height} = Dimensions.get('window');
 
 const LAYOUT_MODES = {
   FIT: 'FIT',
@@ -101,7 +103,7 @@ export default class TabBar extends BaseComponent {
   getLabels(items) {
     if (Array.isArray(items)) {
       const lbls = [];
-      items.forEach((element) => {
+      items.forEach(element => {
         lbls.push(element.props.label);
       });
       return lbls;
@@ -133,7 +135,7 @@ export default class TabBar extends BaseComponent {
       if (!_.isEqual(this.labels, labels)) {
         /** dynamic items' labels */
         const differences = this.getDifferences(this.labels, labels);
-        differences.forEach((element) => {
+        differences.forEach(element => {
           this.itemsWidths[element] = undefined;
         });
         this.labels = labels;
@@ -147,7 +149,9 @@ export default class TabBar extends BaseComponent {
   }
 
   initializeValues(props) {
-    if (!this.scrollLayout) { this.itemsWidths = {}; }
+    if (!this.scrollLayout) {
+      this.itemsWidths = {};
+    }
     this.contentWidth = undefined;
     this.childrenCount = React.Children.count(props.children);
 
@@ -165,30 +169,54 @@ export default class TabBar extends BaseComponent {
     this.styles = createStyles(this.getThemeProps());
   }
 
-  isIgnoredTab = (index) => {
+  isIgnoredTab = index => {
     const {ignoreLastTab} = this.getThemeProps();
-    return (ignoreLastTab && index === (this.childrenCount - 1));
-  }
+    return ignoreLastTab && index === this.childrenCount - 1;
+  };
 
   /** Indicator */
 
-  hasMeasurements() {    
-    return (_.keys(this.itemsWidths).length === this.childrenCount);
+  hasMeasurements() {
+    return _.keys(this.itemsWidths).length === this.childrenCount;
   }
 
-  updateIndicatorPosition = () => {    
+  updateIndicatorPosition = () => {
+    this.updateIndicatorByIndex(this.state.selectedIndex);
+  };
+
+  updateIndicatorByIndex = index => {
     if (this.hasMeasurements() && this.contentWidth) {
-      this.setState({selectedIndicatorPosition: new Animated.Value(this.calcIndicatorPosition(this.state.selectedIndex))});
+      this.setState({
+        selectedIndicatorPosition: new Animated.Value(this.calcIndicatorPosition(index)),
+      });
+      if (this.scrollView != undefined) {
+        this.scrollView.scrollTo({x: this.calcSelectedPosition(index), y: 0, animated: true});
+      }
     }
-  }
+  };
 
-  calcIndicatorWidth() {    
+  calcIndicatorWidth() {
     if (this.childrenCount === 0) {
       return '0%';
     }
-    const itemWidth = this.itemsWidths[this.state.selectedIndex] - (this.itemContentSpacing * 2);
+    const itemWidth = this.itemsWidths[this.state.selectedIndex] - this.itemContentSpacing * 2;
     const width = (itemWidth / this.contentWidth) * 100;
     return `${width}%`;
+  }
+
+  calcSelectedPosition(index) {
+    let position = 0;
+    if (!_.isEmpty(this.itemsWidths)) {
+      let itemPosition = 0;
+      for (let i = 0; i < index; i++) {
+        itemPosition += this.itemsWidths[i];
+      }
+      itemPosition += this.itemContentSpacing;
+      position = itemPosition - width / 2 + this.itemsWidths[index] / 2;
+    } else {
+      position = (index - 1) * this.itemContentSpacing - width / 2 + this.itemsWidths[index] / 2;
+    }
+    return position;
   }
 
   calcIndicatorPosition(index) {
@@ -201,12 +229,12 @@ export default class TabBar extends BaseComponent {
       itemPosition += this.itemContentSpacing;
       position = (itemPosition / this.contentWidth) * 100;
     } else {
-      position = (index * (100 / this.childrenCount)) + this.itemContentSpacing;
+      position = index * (100 / this.childrenCount) + this.itemContentSpacing;
     }
     return position;
   }
 
-  animateIndicatorPosition = (index) => {
+  animateIndicatorPosition = index => {
     const {disableAnimatedTransition} = this.getThemeProps();
     const {selectedIndicatorPosition} = this.state;
 
@@ -221,7 +249,10 @@ export default class TabBar extends BaseComponent {
         friction: 8,
       }).start();
     }
-  }
+    if (this.scrollView != undefined) {
+      this.scrollView.scrollTo({x: this.calcSelectedPosition(index), y: 0, animated: true});
+    }
+  };
 
   onChangeIndex(index) {
     if (this.isIgnoredTab(index)) {
@@ -233,7 +264,7 @@ export default class TabBar extends BaseComponent {
     }
   }
 
-  onTabSelected(index) {    
+  onTabSelected(index) {
     _.invoke(this.props, 'onTabSelected', index);
   }
 
@@ -249,22 +280,23 @@ export default class TabBar extends BaseComponent {
       this.itemsWidths[index] = width;
     }
     this.updateIndicatorPosition();
-  }
+  };
 
   /** Renders */
 
   renderChildren() {
     const {selectedIndex} = this.state;
-    const children = React.Children.map(this.props.children, (child, index) => {    
+    const children = React.Children.map(this.props.children, (child, index) => {
       return React.cloneElement(child, {
         selected: selectedIndex === index,
         width: this.itemsWidths[index], // HACK: keep initial item's width for indicator's width
         onPress: () => {
           this.onChangeIndex(index);
           this.onTabSelected(index);
+          this.updateIndicatorByIndex(index);
           _.invoke(child.props, 'onPress');
         },
-        onLayout: (width) => {
+        onLayout: width => {
           this.onItemLayout(index, width);
         },
       });
@@ -275,10 +307,12 @@ export default class TabBar extends BaseComponent {
   renderSelectedIndicator() {
     const {indicatorStyle} = this.getThemeProps();
     const {selectedIndicatorPosition} = this.state;
-    
+
     // if only one tab - don't render indicator at all
-    if (this.childrenCount - 1 === 0) { return; }
-    
+    if (this.childrenCount - 1 === 0) {
+      return;
+    }
+
     const width = this.calcIndicatorWidth();
     const left = selectedIndicatorPosition.interpolate({
       inputRange: [0, 100],
@@ -324,6 +358,7 @@ export default class TabBar extends BaseComponent {
     return (
       <View row style={{opacity: this.state.fadeAnim, height}} useSafeArea>
         <ScrollView
+          ref={ref => (this.scrollView = ref)}
           horizontal
           showsHorizontalScrollIndicator={false}
           onLayout={this.onLayout}
@@ -351,9 +386,14 @@ export default class TabBar extends BaseComponent {
           height: height - 2,
           position: 'absolute',
           right: 0,
-          opacity: this.state.gradientValue}}
+          opacity: this.state.gradientValue,
+        }}
       >
-        <Image source={Assets.images.gradient} style={{width: gradientWidth, height: height - 3, tintColor}} supportRTL/>
+        <Image
+          source={Assets.images.gradient}
+          style={{width: gradientWidth, height: height - 3, tintColor}}
+          supportRTL
+        />
       </Animated.View>
     );
   }
@@ -361,20 +401,17 @@ export default class TabBar extends BaseComponent {
   render() {
     switch (this.state.currentMode) {
       case LAYOUT_MODES.FIT:
-        return (
-          this.renderBar()
-        );
+        return this.renderBar();
       case LAYOUT_MODES.SCROLL:
-        return (
-          this.renderScrollBar()
-        );
-      default: break;
+        return this.renderScrollBar();
+      default:
+        break;
     }
   }
 
   /** Render Events */
 
-  onLayout = (event) => {
+  onLayout = event => {
     this.containerWidth = event.nativeEvent.layout.width;
 
     switch (this.state.currentMode) {
@@ -385,14 +422,15 @@ export default class TabBar extends BaseComponent {
       case LAYOUT_MODES.SCROLL:
         this.calcLayoutMode();
         break;
-      default: break;
+      default:
+        break;
     }
-  }
+  };
 
-  onContentSizeChange = (width) => {
-    this.contentWidth = width;    
+  onContentSizeChange = width => {
+    this.contentWidth = width;
     this.calcLayoutMode();
-  }
+  };
 
   calcLayoutMode() {
     if (this.contentWidth && this.containerWidth) {
@@ -413,23 +451,23 @@ export default class TabBar extends BaseComponent {
     }
   }
 
-  onScroll = (event) => {
+  onScroll = event => {
     const {useGradientFinish} = this.getThemeProps();
     if (useGradientFinish) {
       const x = event.nativeEvent.contentOffset.x;
       this.animateGradientOpacity(x);
     }
-  }
+  };
 
-  animateGradientOpacity = (x) => {
+  animateGradientOpacity = x => {
     const overflow = this.contentWidth - this.containerWidth;
-    const newValue = (x > 0 && x >= overflow - 1) ? 0 : 1;
-  
+    const newValue = x > 0 && x >= overflow - 1 ? 0 : 1;
+
     Animated.spring(this.state.gradientValue, {
       toValue: newValue,
       speed: 20,
     }).start();
-  }
+  };
 }
 
 function createStyles() {
