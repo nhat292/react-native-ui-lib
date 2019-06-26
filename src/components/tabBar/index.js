@@ -1,7 +1,7 @@
 import _ from 'lodash';
 import PropTypes from 'prop-types';
 import React from 'react';
-import {StyleSheet, ViewPropTypes, Animated, ScrollView, Dimensions} from 'react-native';
+import {StyleSheet, ViewPropTypes, Animated, ScrollView} from 'react-native';
 import {Colors, Spacings} from '../../style';
 import {BaseComponent} from '../../commons';
 import {Constants} from '../../helpers';
@@ -9,8 +9,6 @@ import View from '../view';
 import Image from '../image';
 import Assets from '../../assets';
 import TabBarItem from './TabBarItem';
-
-const {width, height} = Dimensions.get('window');
 
 const LAYOUT_MODES = {
   FIT: 'FIT',
@@ -212,9 +210,9 @@ export default class TabBar extends BaseComponent {
         itemPosition += this.itemsWidths[i];
       }
       itemPosition += this.itemContentSpacing;
-      position = itemPosition - width / 2 + this.itemsWidths[index] / 2;
+      position = itemPosition - this.containerWidth / 2 + this.itemsWidths[index] / 2;
     } else {
-      position = (index - 1) * this.itemContentSpacing - width / 2 + this.itemsWidths[index] / 2;
+      position = (index - 1) * this.itemContentSpacing - this.containerWidth / 2 + this.itemsWidths[index] / 2;
     }
     return position;
   }
