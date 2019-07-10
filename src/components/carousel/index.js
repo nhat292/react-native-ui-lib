@@ -39,11 +39,16 @@ export default class Carousel extends BaseComponent {
      * the carousel style
      */
     containerStyle: PropTypes.oneOfType([PropTypes.object, PropTypes.number, PropTypes.array]),
+    /**
+     * enable or disable scrolling
+     */
+    scrollEnabled: PropTypes.bool
   };
 
   static defaultProps = {
     initialPage: 0,
-    pageWidth: Constants.screenWidth
+    pageWidth: Constants.screenWidth,
+    scrollEnabled: true
   };
 
   constructor(props) {
